@@ -73,6 +73,10 @@ unsigned int m_texture[10];
                       
                       char const *folder = getenv("TMPDIR"); 
 
+ std::thread t2;
+        
+
+
  struct MyAppLog
 {
     ImGuiTextBuffer     Buf;
@@ -135,7 +139,8 @@ unsigned int m_texture[10];
          static MyAppLog mylog;
 
 void LoadImage(char* imagefile, int NumberImage) {
-     
+          if (width[1] != 0)  stbi_image_free(my_image_id[1]);
+ 
         my_image_id[NumberImage] = stbi_load(imagefile, &width[NumberImage], &height[NumberImage], &bpp, 3 );
 
         if (my_image_id[NumberImage] == NULL)
@@ -177,15 +182,63 @@ void LoadImage(char* imagefile, int NumberImage) {
 
 
 void LivePreview() {
+/*
+std::string line;
+     redi::ipstream proc2(testframepath, redi::pstreams::pstderr | redi::pstreams::pstderr);
+     // while (!proc2.rdbuf()->exited()) {
+  //      mylog.AddLog("HERE\n");
+   // }
 
 
-        //  redi::ipstream proc(testframepath, redi::pstreams::pstderr | redi::pstreams::pstderr);
+   while (std::getline(proc2.err(), line))   { 
+        mylog.AddLog("THERE\n");
+    
+          }
+
+
+           while (std::getline(proc2.err(), line))   { 
+        mylog.AddLog("THERE\n");*/
+
+/*
+
+    redi::ipstream proc2(testframepath, redi::pstreams::pstderr | redi::pstreams::pstderr) ;
+  std::string line;
+  // read child's stdout
+ // mylog.AddLog("%s\n",testframepath);
+  while (std::getline(proc2.out(), line)) {
+      mylog.AddLog("[stderr1] %s\n",line.data());
+  }
+  // read child's stderr
+  //while (std::getline(proc2.err(), NULL))   { 
+  //  mylog.AddLog("[stderr2] %s\n",line.data());
+    
+   //       }
+*/
+        
+  system("if pgrep ffmpeg; then pkill ffmpeg; fi");
     system(testframepath);
-    UpdatePreview=true;   
+    UpdatePreview=true;  
+    //if (proc2.eof()) UpdatePreview=true;   
+
+   /*
+
+          if (proc2.eof()) {
+                mylog.AddLog("eof reached\n");
+                UpdatePreview=true; 
+                proc2.clear();
+            }
+
+            proc2.clear();
+
+    */
+            
 }
 
 void Logout() {
-
+     system("if pgrep ffmpeg; then pkill ffmpeg; fi");
+    testframepath[0] = 0;
+     
+    ffplaytestframe[0] = 0;
  mylog.AddLog("Hello from thread\n");
  
  mylog.AddLog("And other one Hello from thread\n");
@@ -193,7 +246,7 @@ void Logout() {
    snprintf(testthumbpath,512,"%stestframe.mp4",folder);
             remove(testthumbpath);
                     
-                    snprintf(testframepath,1024,"./ffmpeg -nostdin -loglevel info -y -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -t 10 -i \"%s\"   -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=%d: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\" -c:v libx264 -x264-params \"nal-hrd=cbr\" -pix_fmt yuv420p -b:v 2M \"%stestframe.mp4\"",outPath,outPath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],timecodebase,folder);
+                    snprintf(testframepath,1024,"./ffmpeg -nostdin -loglevel info -y -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -t 10 -i \"%s\"   -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=%d: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\" -c:v libx264 -x264-params \"nal-hrd=cbr\" -pix_fmt yuv420p -b:v 2M \"%stestframe.mp4\"  ",outPath,outPath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],timecodebase,folder);
                     printf("\n%s\n",testframepath);
                     mylog.AddLog("[info Logout] exec: %s\n",testframepath);
   redi::ipstream proc(testframepath, redi::pstreams::pstderr | redi::pstreams::pstderr);
@@ -223,13 +276,16 @@ void Logout() {
 
  mylog.AddLog("%s\n",testframepath);
      snprintf(ffplaytestframe,512,"./ffplay %s &",testthumbpath);
-                  system(ffplaytestframe);
+              redi::ipstream procFF(ffplaytestframe);
+
 ScrollToBottom=false;
 }
 
 int main(int argc, char *argv[])
 {
-        
+
+
+   
 // This makes relative paths work in C++ in Xcode by changing directory to the Resources folder inside the .app bundle
 #ifdef __APPLE__    
     CFBundleRef mainBundle = CFBundleGetMainBundle();
@@ -582,6 +638,22 @@ ImGuiStyle * style = &ImGui::GetStyle();
                     auto textToSave = editor.GetText();
                     /// save text....
                 }
+
+                if (ImGui::MenuItem("Kill ffmpeg"))
+                {
+                    system("killall ffmpeg");
+                    /// save text....
+                }
+
+                 if (ImGui::MenuItem("pgrep ffmpeg then pkill ffmpeg"))
+                {
+                     system("if pgrep ffmpeg; then pkill ffmpeg; fi");
+                    /// save text....
+                }
+
+
+ 
+
                 if (ImGui::MenuItem("Quit", "Alt-F4"))
                     break;
                 ImGui::EndMenu();
@@ -749,7 +821,8 @@ static float f = 0.0f;
               if (ImGui::Button("Browse")) {
                      
 
-                  
+                      width[0] = 0;
+                        width[1] = 0;
                 
                       nfdresult_t result = NFD_OpenDialog("mkv;mp4;avi;mov", NULL, &outPath );
                       if ( result == NFD_OKAY )
@@ -802,6 +875,7 @@ static float f = 0.0f;
 
                         outPath = NULL;
                         width[0] = 0;
+                        width[1] = 0;
                         mylog.AddLog("[info] Closed the file\n");
 
                     }
@@ -1124,16 +1198,16 @@ timecode[1] = 0;
                       char thumbpath[512]="";
 
 
-                       snprintf(testframepath,1024,"./ffmpeg  -nostdin  -loglevel panic -y -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=25: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\"  \"%stestframe.jpg\"",outPath,outPath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],folder);
+                       snprintf(testframepath,1024,"./ffmpeg  -nostdin  -loglevel panic -y -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=25: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\"  \"%stestframe.jpg\"  ",outPath,outPath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],folder);
                     snprintf(thumbpath,1024,"%stestframe.jpg",folder);
                     //printf("\n%s\n",testframepath);
                     // to much stuff 
                     //mylog.AddLog("[info] exec: %s\n",testframepath);
-  
-                    thread t2(LivePreview);
-                     t2.detach();
-                           LoadImage(livepath,1);  
-
+                
+                    
+                    t2=thread(LivePreview);
+                     t2.join();
+                          
                           LivePreviewIsOn=false;
 
 
@@ -1141,7 +1215,7 @@ timecode[1] = 0;
 
             }
 
-            if (UpdatePreview) { LoadImage(livepath,1); UpdatePreview=false; }
+            if (UpdatePreview) {  LoadImage(livepath,1);UpdatePreview=false; }
 
 
 
@@ -1287,11 +1361,12 @@ timecode[1] = 0;
     ImGui::DestroyContext();
       stbi_image_free(my_image_id[0]);
 stbi_image_free(my_image_id[1]);
-
+    
 
     SDL_GL_DeleteContext(gl_context);
     SDL_DestroyWindow(window);
     SDL_Quit();
+    system("if pgrep ffmpeg; then pkill ffmpeg; fi");
 
     return 0;
 }
