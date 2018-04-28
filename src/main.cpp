@@ -281,6 +281,11 @@ void Logout() {
 ScrollToBottom=false;
 }
 
+    bool show_proxygen_window = true;
+        bool show_log_window = true;
+
+
+
 int main(int argc, char *argv[])
 {
 
@@ -477,7 +482,7 @@ ImGuiStyle * style = &ImGui::GetStyle();
  // ImFont* font = io.Fonts->AddFontFromFileTTF("./keyrusMedium.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesCyrillic());
   // ImFont* font = io.Fonts->AddFontFromMemoryCompressedTTF(keyrusFont_compressed_data,keyrusFont_compressed_size,16.0f,NULL,io.Fonts->GetGlyphRangesCyrillic()); 
     
-    ImFont* font = io.Fonts->AddFontFromMemoryCompressedTTF(symonFont_compressed_data,symonFont_compressed_size,14.0f,NULL,io.Fonts->GetGlyphRangesCyrillic()); 
+    ImFont* font = io.Fonts->AddFontFromMemoryCompressedTTF(symonFont_compressed_data,symonFont_compressed_size,13.0f,NULL,io.Fonts->GetGlyphRangesCyrillic()); 
 
   IM_ASSERT(font != NULL);
   
@@ -486,7 +491,7 @@ ImGuiStyle * style = &ImGui::GetStyle();
 
     bool show_moe_okno = false;
     bool show_demo_window = false;
-    bool show_proxygen_window = true;
+
     bool show_another_window = false;
     bool show_glitch_window = true;
 
@@ -631,15 +636,15 @@ ImGuiStyle * style = &ImGui::GetStyle();
 
                 ImGui::BeginMainMenuBar();
        ImGui::GetStyle().FrameBorderSize = 0.0f;
-            if (ImGui::BeginMenu("File"))
+            if (ImGui::BeginMenu("file"))
             {
-                if (ImGui::MenuItem("Save"))
+                if (ImGui::MenuItem("save"))
                 {
                     auto textToSave = editor.GetText();
                     /// save text....
                 }
 
-                if (ImGui::MenuItem("Kill ffmpeg"))
+                if (ImGui::MenuItem("kill ffmpeg"))
                 {
                     system("killall ffmpeg");
                     /// save text....
@@ -654,11 +659,11 @@ ImGuiStyle * style = &ImGui::GetStyle();
 
  
 
-                if (ImGui::MenuItem("Quit", "Alt-F4"))
+                if (ImGui::MenuItem("quit", "Alt-F4"))
                     break;
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu("Edit"))
+            if (ImGui::BeginMenu("edit"))
             {
                 bool ro = editor.IsReadOnly();
                 if (ImGui::MenuItem("Read-only mode", nullptr, &ro))
@@ -689,15 +694,37 @@ ImGuiStyle * style = &ImGui::GetStyle();
                 ImGui::EndMenu();
             }
 
-            if (ImGui::BeginMenu("View"))
+            if (ImGui::BeginMenu("view"))
             {
-                if (ImGui::MenuItem("Dark palette"))
+                if (ImGui::MenuItem("dark palette"))
                     editor.SetPalette(TextEditor::GetDarkPalette());
-                if (ImGui::MenuItem("Light palette"))
+                if (ImGui::MenuItem("light palette"))
                     editor.SetPalette(TextEditor::GetLightPalette());
                 ImGui::EndMenu();
             }
        
+
+
+            if (ImGui::BeginMenu("proxygen"))
+            {
+                       if (ImGui::MenuItem("show"))
+                     show_proxygen_window=true;
+                if (ImGui::MenuItem("hide"))
+                     show_proxygen_window=false;
+              
+                ImGui::EndMenu();
+            }
+        if (ImGui::BeginMenu("log"))
+            {
+                       if (ImGui::MenuItem("show"))
+                     show_log_window=true;
+                if (ImGui::MenuItem("hide"))
+                     show_log_window=false;
+              
+                ImGui::EndMenu();
+            }
+       
+
 ImGui::EndMainMenuBar();
 
             auto cpos = editor.GetCursorPosition();
@@ -804,10 +831,11 @@ TextEditor::Breakpoints bpts;
 
 
 
+        if (show_log_window) { mylog.Draw("proxygen: log");}
 
           if (show_proxygen_window)
         {
-            mylog.Draw("proxygen: log");
+            
             ImGui::Begin("proxygen 0.2", &show_another_window);
 
 static float f = 0.0f;
@@ -847,6 +875,7 @@ static float f = 0.0f;
             snprintf(livepath,1024,"%stestframe.jpg",folder);
 
             LoadImage(thumbpath,0);
+            LivePreviewIsOn=true;
             //sprintf(mypath, "%s %s", mypath, path);
 
         //     strcpy(buffer2, path);
