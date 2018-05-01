@@ -65,6 +65,7 @@ int width[10], height[10], bpp;
 unsigned char* my_image_id[10];
 unsigned int m_texture[10];
     char livepath[1024];
+    char livethumbpath[512];
     char testframepath[1024]="";
     char exepath[512]="";
             char testthumbpath[512]="";
@@ -275,7 +276,7 @@ void Logout() {
 }
 
  mylog.AddLog("%s\n",testframepath);
-     snprintf(ffplaytestframe,512,"./ffplay %s &",testthumbpath);
+     snprintf(ffplaytestframe,512,"./ffplay -noborder %s &",testthumbpath);
               redi::ipstream procFF(ffplaytestframe);
 
 ScrollToBottom=false;
@@ -363,7 +364,8 @@ ImGuiStyle * style = &ImGui::GetStyle();
     style->Colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
     style->Colors[ImGuiCol_ChildWindowBg] = ImVec4(0.07f, 0.07f, 0.09f, 1.00f);
     style->Colors[ImGuiCol_PopupBg] = ImVec4(0.07f, 0.07f, 0.09f, 1.00f);
-    style->Colors[ImGuiCol_Border] = ImVec4(0.50f, 0.50f, 0.53f, 0.58f);
+    style->Colors[ImGuiCol_Border] = ImVec4(0.49f, 0.49f, 0.49f, 0.27f);
+  
     style->Colors[ImGuiCol_BorderShadow] = ImVec4(0.92f, 0.91f, 0.88f, 0.00f);
     style->Colors[ImGuiCol_FrameBg] = ImVec4(0.102f, 0.109f, 0.145f , 1.00f);
     style->Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
@@ -401,7 +403,10 @@ ImGuiStyle * style = &ImGui::GetStyle();
     style->Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.25f, 1.00f, 0.00f, 1.00f);
     style->Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.25f, 1.00f, 0.00f, 0.43f);
     style->Colors[ImGuiCol_ModalWindowDarkening] = ImVec4(1.00f, 0.98f, 0.95f, 0.73f);
-  
+    ImGui::GetStyle().WindowBorderSize = 0.5f;
+     style->Colors[ImGuiCol_Separator]              = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
+     style->Colors[ImGuiCol_SeparatorHovered]       = ImVec4(0.17f, 0.17f, 0.17f, 0.89f);
+     style->Colors[ImGuiCol_SeparatorActive]        = ImVec4(0.17f, 0.17f, 0.17f, 0.89f);
 
  
 /*
@@ -490,7 +495,7 @@ ImGuiStyle * style = &ImGui::GetStyle();
             
 
     bool show_moe_okno = false;
-    bool show_demo_window = false;
+    bool show_demo_window = true;
 
     bool show_another_window = false;
     bool show_glitch_window = true;
@@ -862,10 +867,24 @@ static float f = 0.0f;
              char const *folder = getenv("TMPDIR");
            
             snprintf(thumbpath,512,"%sthumb.jpg",folder);
+            
             //if (remove(thumbpath)) {  mylog.AddLog("[info] removed %s\n",thumbpath);} 
             //else { mylog.AddLog("[error] having hard time removing: %s\n",thumbpath);}
              
+
+
+             //generate thumbnail
+            exepath[0]=0;
             snprintf(exepath,512,"./ffmpeg -loglevel panic -y -itsoffset -1 -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 -filter:v scale=\"280:-1\"  $TMPDIR/thumb.jpg",outPath,outPath);
+            
+            printf("\n%s\n",exepath);
+             mylog.AddLog("[info] execute: %s\n",exepath);
+            system(exepath);
+
+
+            // generate still fro LivePreview fullres
+            exepath[0]=0;
+             snprintf(exepath,512,"./ffmpeg -loglevel panic -y -itsoffset -1 -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 $TMPDIR/live.jpg",outPath,outPath);
             
             printf("\n%s\n",exepath);
              mylog.AddLog("[info] execute: %s\n",exepath);
@@ -873,7 +892,8 @@ static float f = 0.0f;
            
 
             snprintf(livepath,1024,"%stestframe.jpg",folder);
-
+            snprintf(livethumbpath,512,"%slive.jpg",folder);
+             mylog.AddLog("[livethumbpath] from Browse  %s  \n",livethumbpath);
             LoadImage(thumbpath,0);
             LivePreviewIsOn=true;
             //sprintf(mypath, "%s %s", mypath, path);
@@ -930,7 +950,7 @@ static float f = 0.0f;
   if (ImGui::Button("Play")) {
                     if (outPath != NULL) {
                             char playinput[512];
-                        snprintf(playinput,512,"./ffplay \"%s\"",outPath);
+                        snprintf(playinput,512,"./ffplay -noborder \"%s\"",outPath);
                         mylog.AddLog("[info] exec:%s\n",playinput);
                   system(playinput);
                   
@@ -946,12 +966,26 @@ static float f = 0.0f;
 
       ImGui::NextColumn();
              
-                 if (width[0] > 0) {
+                 if ((width[0] > 0) && (width[1] > 0)) {
   
 
             ImVec2 pos = ImGui::GetCursorScreenPos();
              // printf("Batman width=%d,height=%d,bpp=%d",width,height,bpp);
-             ImGui::Image((void *)m_texture[0], ImVec2(width[0],height[0]), ImVec2(0,0), ImVec2(1,1), ImColor(255,255,255,255), ImColor(255,255,255,128));
+             ImGui::Image((void *)m_texture[1], ImVec2(width[0],height[0]), ImVec2(0,0), ImVec2(1,1), ImColor(255,255,255,255), ImColor(255,255,255,128));
+
+
+              if (ImGui::IsItemClicked()) {       if (outPath != NULL) {
+                            char playinput[512];
+                        snprintf(playinput,512,"./ffplay -noborder -exitonmousedown \"%stestframe.jpg\"",folder);     ///very bad code
+                        mylog.AddLog("[info] exec:%s\n",playinput);
+                  system(playinput);
+                  
+
+                    }
+                     else {
+                         ImGui::OpenPopup("Warning");
+                  
+                     }     }
                 if (ImGui::IsItemHovered())
             {
                 ImGui::BeginTooltip();
@@ -963,7 +997,7 @@ static float f = 0.0f;
                 ImGui::Text("Max: (%.2f, %.2f)", region_x + region_sz, region_y + region_sz);
                 ImVec2 uv0 = ImVec2((region_x) / width[0], (region_y) / height[0]);
                 ImVec2 uv1 = ImVec2((region_x + region_sz) / width[0], (region_y + region_sz) /height[0]);
-                ImGui::Image((void *)m_texture[0], ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, ImColor(255,255,255,255), ImColor(255,255,255,128));
+                ImGui::Image((void *)m_texture[1], ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, ImColor(255,255,255,255), ImColor(255,255,255,128));
                 ImGui::EndTooltip();
             }
             
@@ -1056,7 +1090,7 @@ ImGui::Columns(1);
    else 
    {
 
-
+/*
                       //char testthumbpath[512]="";
                       //char thumbpath[512]="";
                       char ffplaytestframe[512]="";
@@ -1075,11 +1109,13 @@ ImGui::Columns(1);
                  // snprintf(ffplaytestframe,512,"./ffplay %s",testthumbpath);
                   //system(ffplaytestframe);
 
+*/
 
+    LivePreviewIsOn=true;
             } 
               }
               ImGui::SameLine();
-
+/*
 
                 if (width[1]>0) {
 
@@ -1225,15 +1261,16 @@ timecode[1] = 0;
 
                     char testthumbpath[512]="";
                       char thumbpath[512]="";
+                 //     livethumbpath[0]=0;
+                  //     snprintf(livethumbpath,512,"%slive.jpg",folder);
 
-
-                       snprintf(testframepath,1024,"./ffmpeg  -nostdin  -loglevel panic -y -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=25: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\"  \"%stestframe.jpg\"  ",outPath,outPath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],folder);
+                       snprintf(testframepath,1024,"./ffmpeg  -nostdin  -loglevel panic -y -i \"%s\" -vframes 1 -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=25: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\"  \"%stestframe.jpg\"  ",livethumbpath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],folder);
                     snprintf(thumbpath,1024,"%stestframe.jpg",folder);
                     //printf("\n%s\n",testframepath);
                     // to much stuff 
                     //mylog.AddLog("[info] exec: %s\n",testframepath);
                 
-                    
+                     mylog.AddLog("[livethumbpath] from LivePreview %s  \n",livethumbpath);
                     t2=thread(LivePreview);
                      t2.join();
                           
