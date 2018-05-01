@@ -23,7 +23,7 @@
 
 #include <iostream>
 #include <stdlib.h>
-
+#include <locale.h>
 #include <stdint.h>
 #include <thread>
 #include <stdarg.h>
@@ -183,9 +183,9 @@ void LoadImage(char* imagefile, int NumberImage) {
 
 
 void LivePreview() {
-/*
-std::string line;
+
      redi::ipstream proc2(testframepath, redi::pstreams::pstderr | redi::pstreams::pstderr);
+/*
      // while (!proc2.rdbuf()->exited()) {
   //      mylog.AddLog("HERE\n");
    // }
@@ -216,7 +216,6 @@ std::string line;
    //       }
 */
         
-  system("if pgrep ffmpeg; then pkill ffmpeg; fi");
     system(testframepath);
     UpdatePreview=true;  
     //if (proc2.eof()) UpdatePreview=true;   
@@ -247,7 +246,7 @@ void Logout() {
    snprintf(testthumbpath,512,"%stestframe.mp4",folder);
             remove(testthumbpath);
                     
-                    snprintf(testframepath,1024,"./ffmpeg -nostdin -loglevel info -y -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -t 10 -i \"%s\"   -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=%d: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\" -c:v libx264 -x264-params \"nal-hrd=cbr\" -pix_fmt yuv420p -b:v 2M \"%stestframe.mp4\"  ",outPath,outPath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],timecodebase,folder);
+                    snprintf(testframepath,1024,"./ffmpeg -nostdin -loglevel info -y -ss `./ffmpeg -nostdin -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -t 10 -i \"%s\"   -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=%d: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\" -c:v libx264 -x264-params \"nal-hrd=cbr\" -pix_fmt yuv420p -b:v 2M \"%stestframe.mp4\"  ",outPath,outPath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],timecodebase,folder);
                     printf("\n%s\n",testframepath);
                     mylog.AddLog("[info Logout] exec: %s\n",testframepath);
   redi::ipstream proc(testframepath, redi::pstreams::pstderr | redi::pstreams::pstderr);
@@ -289,9 +288,16 @@ ScrollToBottom=false;
 
 int main(int argc, char *argv[])
 {
+    system("export TMPDIR=\"/tmp\"");
+    system("echo $TMPDIR");
+   locale_t nloc = newlocale(LC_NUMERIC_MASK,"POSIX",(locale_t) 0); 
+    uselocale(nloc);
+    // safe locale set 
+char const *folder = getenv("TMPDIR");
+if (folder == 0) 
+        folder = "/tmp/";
 
 
-   
 // This makes relative paths work in C++ in Xcode by changing directory to the Resources folder inside the .app bundle
 #ifdef __APPLE__    
     CFBundleRef mainBundle = CFBundleGetMainBundle();
@@ -495,93 +501,14 @@ ImGuiStyle * style = &ImGui::GetStyle();
             
 
     bool show_moe_okno = false;
-    bool show_demo_window = true;
+    bool show_demo_window = false;
 
     bool show_another_window = false;
-    bool show_glitch_window = true;
+    bool show_glitch_window = false;
 
     ImVec4 clear_color = ImVec4(0.102f, 0.109f, 0.145f, 1.00f);
 
 
-    ///////////////////////////////////////////////////////////////////////
-    // TEXT EDITOR SAMPLE
-    TextEditor editor;
-    auto lang = TextEditor::LanguageDefinition::CPlusPlus();
-
-    // set your own known preprocessor symbols...
-    static const char* ppnames[] = { "NULL", "PM_REMOVE",
-        "ZeroMemory", "DXGI_SWAP_EFFECT_DISCARD", "D3D_FEATURE_LEVEL", "D3D_DRIVER_TYPE_HARDWARE", "WINAPI","D3D11_SDK_VERSION", "assert" };
-    // ... and their corresponding values
-    static const char* ppvalues[] = { 
-        "#define NULL ((void*)0)", 
-        "#define PM_REMOVE (0x0001)",
-        "Microsoft's own memory zapper function\n(which is a macro actually)\nvoid ZeroMemory(\n\t[in] PVOID  Destination,\n\t[in] SIZE_T Length\n); ", 
-        "enum DXGI_SWAP_EFFECT::DXGI_SWAP_EFFECT_DISCARD = 0", 
-        "enum D3D_FEATURE_LEVEL", 
-        "enum D3D_DRIVER_TYPE::D3D_DRIVER_TYPE_HARDWARE  = ( D3D_DRIVER_TYPE_UNKNOWN + 1 )",
-        "#define WINAPI __stdcall",
-        "#define D3D11_SDK_VERSION (7)",
-        " #define assert(expression) (void)(                                                  \n"
-        "    (!!(expression)) ||                                                              \n"
-        "    (_wassert(_CRT_WIDE(#expression), _CRT_WIDE(__FILE__), (unsigned)(__LINE__)), 0) \n"
-        " )"
-        };
-
-    for (int i = 0; i < sizeof(ppnames) / sizeof(ppnames[0]); ++i)
-    {
-        TextEditor::Identifier id;
-        id.mDeclaration = ppvalues[i];
-        lang.mPreprocIdentifiers.insert(std::make_pair(std::string(ppnames[i]), id));
-    }
-
-    // set your own identifiers
-    static const char* identifiers[] = {
-        "HWND", "HRESULT", "LPRESULT","D3D11_RENDER_TARGET_VIEW_DESC", "DXGI_SWAP_CHAIN_DESC","MSG","LRESULT","WPARAM", "LPARAM","UINT","LPVOID",
-        "ID3D11Device", "ID3D11DeviceContext", "ID3D11Buffer", "ID3D11Buffer", "ID3D10Blob", "ID3D11VertexShader", "ID3D11InputLayout", "ID3D11Buffer",
-        "ID3D10Blob", "ID3D11PixelShader", "ID3D11SamplerState", "ID3D11ShaderResourceView", "ID3D11RasterizerState", "ID3D11BlendState", "ID3D11DepthStencilState",
-        "IDXGISwapChain", "ID3D11RenderTargetView", "ID3D11Texture2D", "TextEditor", "get_random_source" };
-    static const char* idecls[] = 
-    {
-        "typedef HWND_* HWND", "typedef long HRESULT", "typedef long* LPRESULT", "struct D3D11_RENDER_TARGET_VIEW_DESC", "struct DXGI_SWAP_CHAIN_DESC",
-        "typedef tagMSG MSG\n * Message structure","typedef LONG_PTR LRESULT","WPARAM", "LPARAM","UINT","LPVOID",
-        "ID3D11Device", "ID3D11DeviceContext", "ID3D11Buffer", "ID3D11Buffer", "ID3D10Blob", "ID3D11VertexShader", "ID3D11InputLayout", "ID3D11Buffer",
-        "ID3D10Blob", "ID3D11PixelShader", "ID3D11SamplerState", "ID3D11ShaderResourceView", "ID3D11RasterizerState", "ID3D11BlendState", "ID3D11DepthStencilState",
-        "IDXGISwapChain", "ID3D11RenderTargetView", "ID3D11Texture2D", "class TextEditor" };
-    for (int i = 0; i < sizeof(identifiers) / sizeof(identifiers[0]); ++i)
-    {
-        TextEditor::Identifier id;
-        id.mDeclaration = std::string(idecls[i]);
-        lang.mIdentifiers.insert(std::make_pair(std::string(identifiers[i]), id));
-    }
-    editor.SetLanguageDefinition(lang);
-    //editor.SetPalette(TextEditor::GetLightPalette());
-
-    // error markers
-    TextEditor::ErrorMarkers markers;
-    markers.insert(std::make_pair<int, std::string>(6, "Example error here:\nInclude file not found: \"TextEditor.h\""));
-    markers.insert(std::make_pair<int, std::string>(41, "Another example error"));
-    editor.SetErrorMarkers(markers);
-
-    // "breakpoint" markers
-     TextEditor::Breakpoints bpts;
-     bpts.insert(24);
-     bpts.insert(47);
-     editor.SetBreakpoints(bpts);
-
-    static const char* fileToEdit= "./s.cpp";
-//  static const char* fileToEdit = "test.cpp";
-
-
-    {
-        std::ifstream t(fileToEdit);
-        if (t.good())
-        {
-            std::string str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
-            editor.SetText(str);
-        }
-    }
-
-//editor.SetText("aasdasdadas\nasdasdas\ns\nasdasdas\ns\nasdasdas\ns\nasdasdas\ns\nasdasdas\n");
      
 
 
@@ -636,203 +563,6 @@ ImGuiStyle * style = &ImGui::GetStyle();
        // ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
 
 
- if (show_glitch_window)
-        {
-
-                ImGui::BeginMainMenuBar();
-       ImGui::GetStyle().FrameBorderSize = 0.0f;
-            if (ImGui::BeginMenu("file"))
-            {
-                if (ImGui::MenuItem("save"))
-                {
-                    auto textToSave = editor.GetText();
-                    /// save text....
-                }
-
-                if (ImGui::MenuItem("kill ffmpeg"))
-                {
-                    system("killall ffmpeg");
-                    /// save text....
-                }
-
-                 if (ImGui::MenuItem("pgrep ffmpeg then pkill ffmpeg"))
-                {
-                     system("if pgrep ffmpeg; then pkill ffmpeg; fi");
-                    /// save text....
-                }
-
-
- 
-
-                if (ImGui::MenuItem("quit", "Alt-F4"))
-                    break;
-                ImGui::EndMenu();
-            }
-            if (ImGui::BeginMenu("edit"))
-            {
-                bool ro = editor.IsReadOnly();
-                if (ImGui::MenuItem("Read-only mode", nullptr, &ro))
-                    editor.SetReadOnly(ro);
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Undo", "ALT-Backspace", nullptr, !ro && editor.CanUndo()))
-                    editor.Undo();
-                if (ImGui::MenuItem("Redo", "Ctrl-Y", nullptr, !ro && editor.CanRedo()))
-                    editor.Redo();
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Copy", "Ctrl-C", nullptr, editor.HasSelection()))
-                    editor.Copy();
-                if (ImGui::MenuItem("Cut", "Ctrl-X", nullptr, !ro && editor.HasSelection()))
-                    editor.Cut();
-                if (ImGui::MenuItem("Delete", "Del", nullptr, !ro && editor.HasSelection()))
-                    editor.Delete();
-                if (ImGui::MenuItem("Paste", "Ctrl-V", nullptr, !ro && ImGui::GetClipboardText() != nullptr))
-                    editor.Paste();
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Select all", nullptr, nullptr))
-                    editor.SetSelection(TextEditor::Coordinates(), TextEditor::Coordinates(editor.GetTotalLines(), 0));
-
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("view"))
-            {
-                if (ImGui::MenuItem("dark palette"))
-                    editor.SetPalette(TextEditor::GetDarkPalette());
-                if (ImGui::MenuItem("light palette"))
-                    editor.SetPalette(TextEditor::GetLightPalette());
-                ImGui::EndMenu();
-            }
-       
-
-
-            if (ImGui::BeginMenu("proxygen"))
-            {
-                       if (ImGui::MenuItem("show"))
-                     show_proxygen_window=true;
-                if (ImGui::MenuItem("hide"))
-                     show_proxygen_window=false;
-              
-                ImGui::EndMenu();
-            }
-        if (ImGui::BeginMenu("log"))
-            {
-                       if (ImGui::MenuItem("show"))
-                     show_log_window=true;
-                if (ImGui::MenuItem("hide"))
-                     show_log_window=false;
-              
-                ImGui::EndMenu();
-            }
-       
-
-ImGui::EndMainMenuBar();
-
-            auto cpos = editor.GetCursorPosition();
-           ImGui::Begin("plainGlitch", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_MenuBar);
-        ImGui::SetWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
-    //----------------
-     if (ImGui::BeginMenuBar())
-        {
-            if (ImGui::BeginMenu("File"))
-            {
-                if (ImGui::MenuItem("Save"))
-                {
-                    auto textToSave = editor.GetText();
-                    /// save text....
-                }
-                if (ImGui::MenuItem("Quit", "Alt-F4"))
-                    break;
-                ImGui::EndMenu();
-            }
-            if (ImGui::BeginMenu("Edit"))
-            {
-                bool ro = editor.IsReadOnly();
-                if (ImGui::MenuItem("Read-only mode", nullptr, &ro))
-                    editor.SetReadOnly(ro);
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Undo", "ALT-Backspace", nullptr, !ro && editor.CanUndo()))
-                    editor.Undo();
-                if (ImGui::MenuItem("Redo", "Ctrl-Y", nullptr, !ro && editor.CanRedo()))
-                    editor.Redo();
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Copy", "Ctrl-C", nullptr, editor.HasSelection()))
-                    editor.Copy();
-                if (ImGui::MenuItem("Cut", "Ctrl-X", nullptr, !ro && editor.HasSelection()))
-                    editor.Cut();
-                if (ImGui::MenuItem("Delete", "Del", nullptr, !ro && editor.HasSelection()))
-                    editor.Delete();
-                if (ImGui::MenuItem("Paste", "Ctrl-V", nullptr, !ro && ImGui::GetClipboardText() != nullptr))
-                    editor.Paste();
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Select all", nullptr, nullptr))
-                    editor.SetSelection(TextEditor::Coordinates(), TextEditor::Coordinates(editor.GetTotalLines(), 0));
-
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("View"))
-            {
-                if (ImGui::MenuItem("Dark palette"))
-                    editor.SetPalette(TextEditor::GetDarkPalette());
-                if (ImGui::MenuItem("Light palette"))
-                    editor.SetPalette(TextEditor::GetLightPalette());
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenuBar();
-        }
-//---------
-
-        ImGui::Text("%6d/%-6d %6d lines  | %s | %s | %s | %s %s", cpos.mLine + 1, cpos.mColumn + 1, editor.GetTotalLines(),
-            editor.IsOverwrite() ? "Ovr" : "Ins",
-            editor.CanUndo() ? "*" : " ",
-            editor.MadeChanges() ? "1" : "2",
-            editor.GetLanguageDefinition().mName.c_str(), fileToEdit);
-        
-
-            if (editor.CanUndo()==true) { changesMade=true;}
-
-            if (changesMade) ImGui::Text("Потрачено");
-
-            if (ImGui::Button("test")) {
-
-TextEditor::Breakpoints bpts;
-     bpts.insert(24);
-     bpts.insert(47);
-     editor.SetBreakpoints(bpts);
-
-
-        }
-                ImGui::SameLine();
-        if (ImGui::Button("fill")) {
-            editor.NoMoreUndo();
-             changesMade=false;
-            fileToEdit="a.cpp";
-        std::ifstream t(fileToEdit);
-        if (t.good())
-        {
-            std::string str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
-            editor.SetText(str);
-        }
-     
-
-        }
-
-
-
-        editor.Render("TextEditor");
-    
-        ImGui::End();
-        }
 
 
 
@@ -857,14 +587,13 @@ static float f = 0.0f;
                       width[0] = 0;
                         width[1] = 0;
                 
-                      nfdresult_t result = NFD_OpenDialog("mkv;mp4;avi;mov", NULL, &outPath );
+                      nfdresult_t result = NFD_OpenDialog("mp4;mkv;avi;mov", NULL, &outPath );
                       if ( result == NFD_OKAY )
                       {
                           
              
             printf("Path  : %s\n",  outPath );
             mylog.AddLog("[info] selected file: %s\n",outPath);
-             char const *folder = getenv("TMPDIR");
            
             snprintf(thumbpath,512,"%sthumb.jpg",folder);
             
@@ -875,7 +604,7 @@ static float f = 0.0f;
 
              //generate thumbnail
             exepath[0]=0;
-            snprintf(exepath,512,"./ffmpeg -loglevel panic -y -itsoffset -1 -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 -filter:v scale=\"280:-1\"  $TMPDIR/thumb.jpg",outPath,outPath);
+            snprintf(exepath,512,"ffmpeg -nostdin -loglevel panic -y -itsoffset -1 -ss `./ffmpeg -nostdin -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 -filter:v scale=\"280:-1\"  $TMPDIR/thumb.jpg",outPath,outPath);
             
             printf("\n%s\n",exepath);
              mylog.AddLog("[info] execute: %s\n",exepath);
@@ -884,7 +613,7 @@ static float f = 0.0f;
 
             // generate still fro LivePreview fullres
             exepath[0]=0;
-             snprintf(exepath,512,"./ffmpeg -loglevel panic -y -itsoffset -1 -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 $TMPDIR/live.jpg",outPath,outPath);
+             snprintf(exepath,512,"ffmpeg -nostdin -loglevel panic -y -itsoffset -1 -ss `./ffmpeg -nostdin -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 $TMPDIR/live.jpg",outPath,outPath);
             
             printf("\n%s\n",exepath);
              mylog.AddLog("[info] execute: %s\n",exepath);
@@ -1195,7 +924,7 @@ ImGui::Columns(1);
    }
    else 
    {
-thread t1(Logout);
+       std::thread t1(Logout);
  t1.detach();
 }
 
@@ -1264,16 +993,22 @@ timecode[1] = 0;
                  //     livethumbpath[0]=0;
                   //     snprintf(livethumbpath,512,"%slive.jpg",folder);
 
-                       snprintf(testframepath,1024,"./ffmpeg  -nostdin  -loglevel panic -y -i \"%s\" -vframes 1 -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=25: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\"  \"%stestframe.jpg\"  ",livethumbpath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],folder);
+                       snprintf(testframepath,1024,"ffmpeg -nostdin -loglevel info -y -i \"%s\" -vframes 1 -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=25: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\"  \"%stestframe.jpg\"  ",livethumbpath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],folder);
                     snprintf(thumbpath,1024,"%stestframe.jpg",folder);
                     //printf("\n%s\n",testframepath);
                     // to much stuff 
                     //mylog.AddLog("[info] exec: %s\n",testframepath);
                 
                      mylog.AddLog("[livethumbpath] from LivePreview %s  \n",livethumbpath);
-                    t2=thread(LivePreview);
+                     std::thread t2(LivePreview);
                      t2.join();
-                          
+                    mylog.AddLog("Here in Live, Running system");  
+                     
+                    
+                   //system(testframepath);    
+                    system("echo FUCK");
+                    
+                    mylog.AddLog("\n and it was:%s\n",testframepath);
                           LivePreviewIsOn=false;
 
 
