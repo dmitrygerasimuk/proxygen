@@ -13,7 +13,9 @@
 
 
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_impl_sdl_gl3.h"
+
 #include <stdio.h>
 #include "pstream.h"
 #include <string>
@@ -23,7 +25,7 @@
 
 #include <iostream>
 #include <stdlib.h>
-
+#include <locale.h>
 #include <stdint.h>
 #include <thread>
 #include <stdarg.h>
@@ -39,27 +41,37 @@
 #include "nfd.h"
 //#include <tchar.h>
 
-#include "TextEditor.h"
+//#include "TextEditor.h"
+
+ 
+ float  AmClamp(float v, float mn, float mx)                       { return (v < mn) ? mn : (v > mx) ? mx : v; }
+  
 
 
-         static int outWi =1280;
+    static char proxygenVersion[12] = "0.2a";
+             static int outWi =1280;
             static int outHe =720;
             static char outFont[64]="vcr.ttf";
+            static char *renderButton = "Render";
             static char outWaterText[64]="WATERMARK";
             static char outWaterColor[12]="white";
+            static float outWaterColorHEX[3] = { 1.0f,0.0f,0.2f };
             static float outWaterOpac=0.1f;
             static int outWaterSize =280;
             static int outWaterX =0;
             static int outWaterY =250;
-            static int timecodebase = 24;
+            static int timecodebase = 25;
                  static int timecode[4] = { 01, 00,00, 00 };
  bool                ScrollToBottom;
     bool changesMade=false;
     bool LivePreviewIsOn=false;
     bool UpdatePreview=false;
+    bool rendering=false;
  nfdchar_t *outPath = NULL;
 nfdchar_t *path=""; 
- 
+
+
+
 float progress = 0.0f;
 int width[10], height[10], bpp;
 unsigned char* my_image_id[10];
@@ -73,9 +85,27 @@ unsigned int m_texture[10];
                        char thumbpath[512]="";
                       
                       char const *folder = getenv("TMPDIR"); 
+                            char myfolder[1024] = "HELL";    
+                            char tmpfolder[1024] = "HELL";
+                              ;
 
- std::thread t2;
-        
+ std::thread t2;    
+ static void HelpMarker(const char* desc)
+{
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+        ImGui::TextUnformatted(desc);
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+}
+
+        static bool show_app_about = false;
+        static bool show_overlay=true;
+
 
 
  struct MyAppLog
@@ -183,9 +213,9 @@ void LoadImage(char* imagefile, int NumberImage) {
 
 
 void LivePreview() {
-/*
-std::string line;
+
      redi::ipstream proc2(testframepath, redi::pstreams::pstderr | redi::pstreams::pstderr);
+/*
      // while (!proc2.rdbuf()->exited()) {
   //      mylog.AddLog("HERE\n");
    // }
@@ -216,7 +246,6 @@ std::string line;
    //       }
 */
         
-  system("if pgrep ffmpeg; then pkill ffmpeg; fi");
     system(testframepath);
     UpdatePreview=true;  
     //if (proc2.eof()) UpdatePreview=true;   
@@ -235,10 +264,77 @@ std::string line;
             
 }
 
+void ShowOverlay(bool* p_open)
+{
+    const float DISTANCE = 10.0f;
+    static int corner = 2;
+    ImGuiIO& io = ImGui::GetIO();
+    if (corner != -1)
+    {
+        ImVec2 window_pos = ImVec2((corner & 1) ? io.DisplaySize.x - DISTANCE : DISTANCE, (corner & 2) ? io.DisplaySize.y - DISTANCE : DISTANCE);
+        ImVec2 window_pos_pivot = ImVec2((corner & 1) ? 1.0f : 0.0f, (corner & 2) ? 1.0f : 0.0f);
+        ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
+    }
+    ImGui::SetNextWindowBgAlpha(0.0f); // Transparent background
+    if (ImGui::Begin("", p_open, (corner != -1 ? ImGuiWindowFlags_NoMove : 0) | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
+    {
+      // ImGui::Text("Simple overlay\n" "in the corner of the screen.\n" "(right-click to change position)");
+   ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+                        1000.0f / ImGui::GetIO().Framerate,
+                        ImGui::GetIO().Framerate);
+      
+       
+        if (ImGui::BeginPopupContextWindow())
+        {
+            if (ImGui::MenuItem("Custom",       NULL, corner == -1)) corner = -1;
+            if (ImGui::MenuItem("Top-left",     NULL, corner == 0)) corner = 0;
+            if (ImGui::MenuItem("Top-right",    NULL, corner == 1)) corner = 1;
+            if (ImGui::MenuItem("Bottom-left",  NULL, corner == 2)) corner = 2;
+            if (ImGui::MenuItem("Bottom-right", NULL, corner == 3)) corner = 3;
+            if (p_open && ImGui::MenuItem("Close")) *p_open = false;
+            ImGui::EndPopup();
+        }
+    }
+    ImGui::End();
+}
+
+void ShowAboutWindow(bool* p_open)
+
+{
+  
+    if (!ImGui::Begin("About Proxygen", p_open, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::End();
+        return;
+    }
+       
+        
+       
+       
+           
+     ImGui::Image((void *)m_texture[4], ImVec2(width[4],height[4]), ImVec2(0,0), ImVec2(1,1), ImColor(255,255,255,255), ImColor(0,0,0,0));
+    ImGui::Text("Proxygen version %s", proxygenVersion);
+
+    ImGui::Separator();
+ 
+    
+    ImGui::Text("by Dmitry Gerasimuk (c) 2019 www.dmitrygerasimuk.com ");
+    ImGui::Text("UI: Dear ImGui");
+    if (ImGui::IsMouseDoubleClicked(0))
+                   show_app_about = false;
+     
+    
+        
+           
+    ImGui::End();
+}
+
 void Logout() {
+     
      system("if pgrep ffmpeg; then pkill ffmpeg; fi");
     testframepath[0] = 0;
-     
+        locale_t nloc = newlocale(LC_NUMERIC_MASK,"POSIX",(locale_t) 0); 
+    uselocale(nloc);
     ffplaytestframe[0] = 0;
  mylog.AddLog("Hello from thread\n");
  
@@ -247,7 +343,7 @@ void Logout() {
    snprintf(testthumbpath,512,"%stestframe.mp4",folder);
             remove(testthumbpath);
                     
-                    snprintf(testframepath,1024,"./ffmpeg -nostdin -loglevel info -y -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -t 10 -i \"%s\"   -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=%d: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\" -c:v libx264 -x264-params \"nal-hrd=cbr\" -pix_fmt yuv420p -b:v 2M \"%stestframe.mp4\"  ",outPath,outPath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],timecodebase,folder);
+                    snprintf(testframepath,1024,"./ffmpeg -nostdin -loglevel info -y -ss `./ffmpeg -nostdin -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -t 10 -i \"%s\"   -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=%d: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\" -c:v libx264 -x264-params \"nal-hrd=cbr\" -pix_fmt yuvj422p -b:v 2M \"%stestframe.mp4\"  ",outPath,outPath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],timecodebase,folder);
                     printf("\n%s\n",testframepath);
                     mylog.AddLog("[info Logout] exec: %s\n",testframepath);
   redi::ipstream proc(testframepath, redi::pstreams::pstderr | redi::pstreams::pstderr);
@@ -262,7 +358,7 @@ void Logout() {
      if (word =="frame=") mylog.AddLog("[ffmpeg] %s\n",word.data());
      if (word =="\0") mylog.AddLog("f\n");
    std::size_t found=word.find('frame');
-  if (found!=std::string::npos) mylog.AddLog("FPUND\n");
+  if (found!=std::string::npos) { mylog.AddLog(word.data());  if (word =="\0") mylog.AddLog("f\n"); };
     
      //if (word !="frame") mylog.AddLog("[ffmpeg] %s",word.data());
      
@@ -282,6 +378,60 @@ void Logout() {
 ScrollToBottom=false;
 }
 
+
+void proxyRender() {
+    rendering=true;
+     system("if pgrep ffmpeg; then pkill ffmpeg; fi");
+    testframepath[0] = 0;
+    locale_t nloc = newlocale(LC_NUMERIC_MASK,"POSIX",(locale_t) 0); 
+    uselocale(nloc);
+    ffplaytestframe[0] = 0;
+ mylog.AddLog("Starting to Render\n");
+  
+   snprintf(testthumbpath,512,"%soutput.mp4",folder);
+    remove(testthumbpath);
+                    
+                    snprintf(testframepath,1024,"./ffmpeg -nostdin -loglevel info -y -i \"%s\" -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=%d: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\" -c:v libx264 -x264-params \"nal-hrd=cbr\" -pix_fmt yuv420p -b:v 2M \"%soutput.mp4\"  ",outPath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],timecodebase,folder);
+                    printf("\n%s\n",testframepath);
+                    mylog.AddLog("[info Logout] exec: %s\n",testframepath);
+  redi::ipstream proc(testframepath, redi::pstreams::pstderr | redi::pstreams::pstderr);
+  std::string word;
+  std::string line;
+
+  // read child's stdout
+  while (!proc.rdbuf()->exited()) {
+     proc >> word;
+     
+    // mylog.AddLog("[ffmpeg] %s\n",word.data());
+    if (word =="frame=") mylog.AddLog("[ffmpeg] %s\n",word.data());
+     if (word =="\0") mylog.AddLog("f\n");
+   std::size_t found=word.find('frame');
+  if (found!=std::string::npos) { mylog.AddLog(word.data());  if (word =="\0") mylog.AddLog("f\n"); };
+    
+     //if (word !="frame") mylog.AddLog("[ffmpeg] %s",word.data());
+     
+     
+     //mylog.AddLog("GOTCHA GOTHCA")
+     ScrollToBottom=true;
+  }
+  // read child's stderr
+  while (std::getline(proc.out(), line))   { 
+    mylog.AddLog("[stderr2] %s\n",line.data());
+}
+
+ mylog.AddLog("%s\n",testframepath);
+    // snprintf(ffplaytestframe,512,"./ffplay -noborder %s &",testthumbpath);
+    snprintf(ffplaytestframe,512,"open %s &",folder);
+    rendering=false;
+      
+      
+              redi::ipstream procFF(ffplaytestframe);
+
+
+ScrollToBottom=false;
+}
+
+
     bool show_proxygen_window = true;
         bool show_log_window = true;
 
@@ -289,9 +439,15 @@ ScrollToBottom=false;
 
 int main(int argc, char *argv[])
 {
+    system("export TMPDIR=\"/tmp\"");
+    system("echo $TMPDIR");
+  locale_t nloc = newlocale(LC_NUMERIC_MASK,"POSIX",(locale_t) 0); 
+     uselocale(nloc);
+    // safe locale set 
+char const *folder = getenv("TMPDIR");
+if (folder == 0) folder = "/tmp/";
+ snprintf(tmpfolder,512,"%s",folder);
 
-
-   
 // This makes relative paths work in C++ in Xcode by changing directory to the Resources folder inside the .app bundle
 #ifdef __APPLE__    
     CFBundleRef mainBundle = CFBundleGetMainBundle();
@@ -327,7 +483,7 @@ using namespace std;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
     SDL_DisplayMode current;
     SDL_GetCurrentDisplayMode(0, &current);
-    SDL_Window* window = SDL_CreateWindow("proxygen 0.2", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow("proxygen", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     SDL_GL_SetSwapInterval(1); // Enable vsync
     gl3wInit();
@@ -352,28 +508,34 @@ ImGuiStyle * style = &ImGui::GetStyle();
     style->FrameRounding = 4.0f;
     style->ItemSpacing = ImVec2(12, 8);
     style->ItemInnerSpacing = ImVec2(8, 6);
-    style->IndentSpacing = 25.0f;
+    style->IndentSpacing = 23.0f;
     style->ScrollbarSize = 15.0f;
     style->ScrollbarRounding = 9.0f;
     style->GrabMinSize = 5.0f;
     style->GrabRounding = 3.0f;
     style->FrameBorderSize = 0.0f;
  
-    style->Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.80f, 0.83f, 1.00f);
+    style->Colors[ImGuiCol_Text] = ImVec4(0.60f, 0.63f, 0.66f, 1.00f);
     style->Colors[ImGuiCol_TextDisabled] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
-    style->Colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
+
+    style->Colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.06f, 0.08f, 1.00f);
+
     style->Colors[ImGuiCol_ChildWindowBg] = ImVec4(0.07f, 0.07f, 0.09f, 1.00f);
     style->Colors[ImGuiCol_PopupBg] = ImVec4(0.07f, 0.07f, 0.09f, 1.00f);
-    style->Colors[ImGuiCol_Border] = ImVec4(0.49f, 0.49f, 0.49f, 0.27f);
+    style->Colors[ImGuiCol_Border] = ImVec4(1.00f, 1.00f, 1.00f, 0.00f);
   
     style->Colors[ImGuiCol_BorderShadow] = ImVec4(0.92f, 0.91f, 0.88f, 0.00f);
-    style->Colors[ImGuiCol_FrameBg] = ImVec4(0.102f, 0.109f, 0.145f , 1.00f);
+    style->Colors[ImGuiCol_FrameBg] = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
+    
     style->Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
     style->Colors[ImGuiCol_FrameBgActive] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
-    style->Colors[ImGuiCol_TitleBg] = ImVec4(0.102f, 0.109f, 0.145f , 1.00f);
-    style->Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(1.00f, 0.98f, 0.95f, 0.75f);
-    style->Colors[ImGuiCol_TitleBgActive] = ImVec4(0.07f, 0.07f, 0.09f, 1.00f);
-    style->Colors[ImGuiCol_MenuBarBg] = ImVec4(0.102f, 0.109f, 0.145f , 1.00f);
+    style->Colors[ImGuiCol_TitleBg] = ImVec4(0.06f, 0.06f, 0.08f, 1.00f);
+    style->Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.03f, 0.03f, 0.03f, 0.50f);
+    style->Colors[ImGuiCol_TitleBgActive] = ImVec4(0.17f, 0.17f, 0.20f, 1.00f);
+
+    //style->Colors[ImGuiCol_MenuBarBg] = ImVec4(0.14f, 0.14f, 0.18f, 1.00f);
+    style->Colors[ImGuiCol_MenuBarBg] = ImVec4(0.02f, 0.02f, 0.02f, 1.00f);
+
     style->Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.102f, 0.109f, 0.145f , 1.00f);
     style->Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.80f, 0.80f, 0.83f, 0.31f);
     style->Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
@@ -386,7 +548,7 @@ ImGuiStyle * style = &ImGui::GetStyle();
     style->Colors[ImGuiCol_ButtonHovered] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
     style->Colors[ImGuiCol_ButtonActive] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
     style->Colors[ImGuiCol_Header] = ImVec4(0.102f, 0.109f, 0.145f , 1.00f);
-    style->Colors[ImGuiCol_HeaderHovered] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
+    style->Colors[ImGuiCol_HeaderHovered] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
     style->Colors[ImGuiCol_HeaderActive] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
     style->Colors[ImGuiCol_Column] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
     style->Colors[ImGuiCol_ColumnHovered] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
@@ -402,7 +564,7 @@ ImGuiStyle * style = &ImGui::GetStyle();
     style->Colors[ImGuiCol_PlotHistogram] = ImVec4(0.40f, 0.39f, 0.38f, 0.63f);
     style->Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.25f, 1.00f, 0.00f, 1.00f);
     style->Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.25f, 1.00f, 0.00f, 0.43f);
-    style->Colors[ImGuiCol_ModalWindowDarkening] = ImVec4(1.00f, 0.98f, 0.95f, 0.73f);
+    style->Colors[ImGuiCol_ModalWindowDarkening] = ImVec4(0.43f, 0.08f, 0.08f, 0.75f);
     ImGui::GetStyle().WindowBorderSize = 0.5f;
      style->Colors[ImGuiCol_Separator]              = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
      style->Colors[ImGuiCol_SeparatorHovered]       = ImVec4(0.17f, 0.17f, 0.17f, 0.89f);
@@ -495,93 +657,17 @@ ImGuiStyle * style = &ImGui::GetStyle();
             
 
     bool show_moe_okno = false;
-    bool show_demo_window = true;
+    bool show_demo_window = false;
 
     bool show_another_window = false;
-    bool show_glitch_window = true;
+    bool show_glitch_window = false;
 
     ImVec4 clear_color = ImVec4(0.102f, 0.109f, 0.145f, 1.00f);
 
-
-    ///////////////////////////////////////////////////////////////////////
-    // TEXT EDITOR SAMPLE
-    TextEditor editor;
-    auto lang = TextEditor::LanguageDefinition::CPlusPlus();
-
-    // set your own known preprocessor symbols...
-    static const char* ppnames[] = { "NULL", "PM_REMOVE",
-        "ZeroMemory", "DXGI_SWAP_EFFECT_DISCARD", "D3D_FEATURE_LEVEL", "D3D_DRIVER_TYPE_HARDWARE", "WINAPI","D3D11_SDK_VERSION", "assert" };
-    // ... and their corresponding values
-    static const char* ppvalues[] = { 
-        "#define NULL ((void*)0)", 
-        "#define PM_REMOVE (0x0001)",
-        "Microsoft's own memory zapper function\n(which is a macro actually)\nvoid ZeroMemory(\n\t[in] PVOID  Destination,\n\t[in] SIZE_T Length\n); ", 
-        "enum DXGI_SWAP_EFFECT::DXGI_SWAP_EFFECT_DISCARD = 0", 
-        "enum D3D_FEATURE_LEVEL", 
-        "enum D3D_DRIVER_TYPE::D3D_DRIVER_TYPE_HARDWARE  = ( D3D_DRIVER_TYPE_UNKNOWN + 1 )",
-        "#define WINAPI __stdcall",
-        "#define D3D11_SDK_VERSION (7)",
-        " #define assert(expression) (void)(                                                  \n"
-        "    (!!(expression)) ||                                                              \n"
-        "    (_wassert(_CRT_WIDE(#expression), _CRT_WIDE(__FILE__), (unsigned)(__LINE__)), 0) \n"
-        " )"
-        };
-
-    for (int i = 0; i < sizeof(ppnames) / sizeof(ppnames[0]); ++i)
-    {
-        TextEditor::Identifier id;
-        id.mDeclaration = ppvalues[i];
-        lang.mPreprocIdentifiers.insert(std::make_pair(std::string(ppnames[i]), id));
-    }
-
-    // set your own identifiers
-    static const char* identifiers[] = {
-        "HWND", "HRESULT", "LPRESULT","D3D11_RENDER_TARGET_VIEW_DESC", "DXGI_SWAP_CHAIN_DESC","MSG","LRESULT","WPARAM", "LPARAM","UINT","LPVOID",
-        "ID3D11Device", "ID3D11DeviceContext", "ID3D11Buffer", "ID3D11Buffer", "ID3D10Blob", "ID3D11VertexShader", "ID3D11InputLayout", "ID3D11Buffer",
-        "ID3D10Blob", "ID3D11PixelShader", "ID3D11SamplerState", "ID3D11ShaderResourceView", "ID3D11RasterizerState", "ID3D11BlendState", "ID3D11DepthStencilState",
-        "IDXGISwapChain", "ID3D11RenderTargetView", "ID3D11Texture2D", "TextEditor", "get_random_source" };
-    static const char* idecls[] = 
-    {
-        "typedef HWND_* HWND", "typedef long HRESULT", "typedef long* LPRESULT", "struct D3D11_RENDER_TARGET_VIEW_DESC", "struct DXGI_SWAP_CHAIN_DESC",
-        "typedef tagMSG MSG\n * Message structure","typedef LONG_PTR LRESULT","WPARAM", "LPARAM","UINT","LPVOID",
-        "ID3D11Device", "ID3D11DeviceContext", "ID3D11Buffer", "ID3D11Buffer", "ID3D10Blob", "ID3D11VertexShader", "ID3D11InputLayout", "ID3D11Buffer",
-        "ID3D10Blob", "ID3D11PixelShader", "ID3D11SamplerState", "ID3D11ShaderResourceView", "ID3D11RasterizerState", "ID3D11BlendState", "ID3D11DepthStencilState",
-        "IDXGISwapChain", "ID3D11RenderTargetView", "ID3D11Texture2D", "class TextEditor" };
-    for (int i = 0; i < sizeof(identifiers) / sizeof(identifiers[0]); ++i)
-    {
-        TextEditor::Identifier id;
-        id.mDeclaration = std::string(idecls[i]);
-        lang.mIdentifiers.insert(std::make_pair(std::string(identifiers[i]), id));
-    }
-    editor.SetLanguageDefinition(lang);
-    //editor.SetPalette(TextEditor::GetLightPalette());
-
-    // error markers
-    TextEditor::ErrorMarkers markers;
-    markers.insert(std::make_pair<int, std::string>(6, "Example error here:\nInclude file not found: \"TextEditor.h\""));
-    markers.insert(std::make_pair<int, std::string>(41, "Another example error"));
-    editor.SetErrorMarkers(markers);
-
-    // "breakpoint" markers
-     TextEditor::Breakpoints bpts;
-     bpts.insert(24);
-     bpts.insert(47);
-     editor.SetBreakpoints(bpts);
-
-    static const char* fileToEdit= "./s.cpp";
-//  static const char* fileToEdit = "test.cpp";
+    static char buf2[64] = "proxygen.png";  
+      LoadImage(buf2,4);
 
 
-    {
-        std::ifstream t(fileToEdit);
-        if (t.good())
-        {
-            std::string str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
-            editor.SetText(str);
-        }
-    }
-
-//editor.SetText("aasdasdadas\nasdasdas\ns\nasdasdas\ns\nasdasdas\ns\nasdasdas\ns\nasdasdas\n");
      
 
 
@@ -636,18 +722,12 @@ ImGuiStyle * style = &ImGui::GetStyle();
        // ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
 
 
- if (show_glitch_window)
-        {
 
                 ImGui::BeginMainMenuBar();
        ImGui::GetStyle().FrameBorderSize = 0.0f;
             if (ImGui::BeginMenu("file"))
             {
-                if (ImGui::MenuItem("save"))
-                {
-                    auto textToSave = editor.GetText();
-                    /// save text....
-                }
+                 
 
                 if (ImGui::MenuItem("kill ffmpeg"))
                 {
@@ -664,50 +744,17 @@ ImGuiStyle * style = &ImGui::GetStyle();
 
  
 
-                if (ImGui::MenuItem("quit", "Alt-F4"))
+                if (ImGui::MenuItem("quit", "Alt-F4")) {
+
+                done = true;
+                show_proxygen_window = false;
                     break;
+                }
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu("edit"))
-            {
-                bool ro = editor.IsReadOnly();
-                if (ImGui::MenuItem("Read-only mode", nullptr, &ro))
-                    editor.SetReadOnly(ro);
-                ImGui::Separator();
+            
 
-                if (ImGui::MenuItem("Undo", "ALT-Backspace", nullptr, !ro && editor.CanUndo()))
-                    editor.Undo();
-                if (ImGui::MenuItem("Redo", "Ctrl-Y", nullptr, !ro && editor.CanRedo()))
-                    editor.Redo();
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Copy", "Ctrl-C", nullptr, editor.HasSelection()))
-                    editor.Copy();
-                if (ImGui::MenuItem("Cut", "Ctrl-X", nullptr, !ro && editor.HasSelection()))
-                    editor.Cut();
-                if (ImGui::MenuItem("Delete", "Del", nullptr, !ro && editor.HasSelection()))
-                    editor.Delete();
-                if (ImGui::MenuItem("Paste", "Ctrl-V", nullptr, !ro && ImGui::GetClipboardText() != nullptr))
-                    editor.Paste();
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Select all", nullptr, nullptr))
-                    editor.SetSelection(TextEditor::Coordinates(), TextEditor::Coordinates(editor.GetTotalLines(), 0));
-
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("view"))
-            {
-                if (ImGui::MenuItem("dark palette"))
-                    editor.SetPalette(TextEditor::GetDarkPalette());
-                if (ImGui::MenuItem("light palette"))
-                    editor.SetPalette(TextEditor::GetLightPalette());
-                ImGui::EndMenu();
-            }
-       
+           
 
 
             if (ImGui::BeginMenu("proxygen"))
@@ -723,148 +770,75 @@ ImGuiStyle * style = &ImGui::GetStyle();
             {
                        if (ImGui::MenuItem("show"))
                      show_log_window=true;
+                     show_moe_okno=true;
+                     show_demo_window=true;
                 if (ImGui::MenuItem("hide"))
                      show_log_window=false;
               
                 ImGui::EndMenu();
             }
+
+             if (ImGui::BeginMenu("about"))
+            {
+                      
+                     show_app_about=true;
+                
+              
+                ImGui::EndMenu();
+            }
+             if (ImGui::BeginMenu("exit"))
+            {
+                      
+                     done = true;
+                show_proxygen_window = false;
+              
+                ImGui::EndMenu();
+            }
+            
+            
        
 
 ImGui::EndMainMenuBar();
 
-            auto cpos = editor.GetCursorPosition();
-           ImGui::Begin("plainGlitch", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_MenuBar);
-        ImGui::SetWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
-    //----------------
-     if (ImGui::BeginMenuBar())
-        {
-            if (ImGui::BeginMenu("File"))
-            {
-                if (ImGui::MenuItem("Save"))
-                {
-                    auto textToSave = editor.GetText();
-                    /// save text....
-                }
-                if (ImGui::MenuItem("Quit", "Alt-F4"))
-                    break;
-                ImGui::EndMenu();
-            }
-            if (ImGui::BeginMenu("Edit"))
-            {
-                bool ro = editor.IsReadOnly();
-                if (ImGui::MenuItem("Read-only mode", nullptr, &ro))
-                    editor.SetReadOnly(ro);
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Undo", "ALT-Backspace", nullptr, !ro && editor.CanUndo()))
-                    editor.Undo();
-                if (ImGui::MenuItem("Redo", "Ctrl-Y", nullptr, !ro && editor.CanRedo()))
-                    editor.Redo();
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Copy", "Ctrl-C", nullptr, editor.HasSelection()))
-                    editor.Copy();
-                if (ImGui::MenuItem("Cut", "Ctrl-X", nullptr, !ro && editor.HasSelection()))
-                    editor.Cut();
-                if (ImGui::MenuItem("Delete", "Del", nullptr, !ro && editor.HasSelection()))
-                    editor.Delete();
-                if (ImGui::MenuItem("Paste", "Ctrl-V", nullptr, !ro && ImGui::GetClipboardText() != nullptr))
-                    editor.Paste();
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Select all", nullptr, nullptr))
-                    editor.SetSelection(TextEditor::Coordinates(), TextEditor::Coordinates(editor.GetTotalLines(), 0));
-
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("View"))
-            {
-                if (ImGui::MenuItem("Dark palette"))
-                    editor.SetPalette(TextEditor::GetDarkPalette());
-                if (ImGui::MenuItem("Light palette"))
-                    editor.SetPalette(TextEditor::GetLightPalette());
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenuBar();
-        }
-//---------
-
-        ImGui::Text("%6d/%-6d %6d lines  | %s | %s | %s | %s %s", cpos.mLine + 1, cpos.mColumn + 1, editor.GetTotalLines(),
-            editor.IsOverwrite() ? "Ovr" : "Ins",
-            editor.CanUndo() ? "*" : " ",
-            editor.MadeChanges() ? "1" : "2",
-            editor.GetLanguageDefinition().mName.c_str(), fileToEdit);
-        
-
-            if (editor.CanUndo()==true) { changesMade=true;}
-
-            if (changesMade) ImGui::Text("Потрачено");
-
-            if (ImGui::Button("test")) {
-
-TextEditor::Breakpoints bpts;
-     bpts.insert(24);
-     bpts.insert(47);
-     editor.SetBreakpoints(bpts);
-
-
-        }
-                ImGui::SameLine();
-        if (ImGui::Button("fill")) {
-            editor.NoMoreUndo();
-             changesMade=false;
-            fileToEdit="a.cpp";
-        std::ifstream t(fileToEdit);
-        if (t.good())
-        {
-            std::string str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
-            editor.SetText(str);
-        }
-     
-
-        }
-
-
-
-        editor.Render("TextEditor");
-    
-        ImGui::End();
-        }
-
-
-
+        if (show_app_about)               { ShowAboutWindow(&show_app_about); }
+       if (show_overlay)      ShowOverlay(&show_overlay);
         if (show_log_window) { mylog.Draw("proxygen: log");}
 
           if (show_proxygen_window)
         {
+               
+           /*  char buf[128];
+            sprintf(buf,'proxygen 0.2');
+            */
+            ImGui::Begin("proxygen", &show_another_window);
             
-            ImGui::Begin("proxygen 0.2", &show_another_window);
 
 static float f = 0.0f;
 
 
 
-            ImGui::Text("Hello from another window!");
+           // ImGui::Text("Hello from another window!");
            // ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f    
            // ImGui::ColorEdit3("clear color", (float*)&clear_color);
             ImGui::Columns(2, "mycolumns2", false);  // 3-ways, no border
-              if (ImGui::Button("Browse")) {
+
+             ImGui::PushID(4);
+            ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(4/7.0f, 0.6f, 0.6f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(4/7.0f, 0.7f, 0.7f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(4/7.0f, 0.8f, 0.8f));
+            if (ImGui::Button("Browse")) {
                      
 
                       width[0] = 0;
                         width[1] = 0;
                 
-                      nfdresult_t result = NFD_OpenDialog("mkv;mp4;avi;mov", NULL, &outPath );
+                      nfdresult_t result = NFD_OpenDialog("mp4;mkv;avi;mov", NULL, &outPath );
                       if ( result == NFD_OKAY )
                       {
                           
              
             printf("Path  : %s\n",  outPath );
             mylog.AddLog("[info] selected file: %s\n",outPath);
-             char const *folder = getenv("TMPDIR");
            
             snprintf(thumbpath,512,"%sthumb.jpg",folder);
             
@@ -875,16 +849,20 @@ static float f = 0.0f;
 
              //generate thumbnail
             exepath[0]=0;
-            snprintf(exepath,512,"./ffmpeg -loglevel panic -y -itsoffset -1 -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 -filter:v scale=\"280:-1\"  $TMPDIR/thumb.jpg",outPath,outPath);
+            snprintf(exepath,512,"./ffmpeg -nostdin -loglevel panic -y -itsoffset -1 -ss `./ffmpeg -nostdin -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 -filter:v scale=\"280:-1\"  $TMPDIR/thumb.jpg",outPath,outPath);
             
             printf("\n%s\n",exepath);
-             mylog.AddLog("[info] execute: %s\n",exepath);
+          
+                
+ mylog.AddLog("[info] execute: %s\n",exepath);
+    
+        
             system(exepath);
 
 
             // generate still fro LivePreview fullres
             exepath[0]=0;
-             snprintf(exepath,512,"./ffmpeg -loglevel panic -y -itsoffset -1 -ss `./ffmpeg -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 $TMPDIR/live.jpg",outPath,outPath);
+             snprintf(exepath,512,"./ffmpeg -nostdin -loglevel panic -y -itsoffset -1 -ss `./ffmpeg -nostdin -i \"%s\" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F ':' '{print ($3+$2*60+$1*3600)/2}' | cut -d',' -f1 ` -i \"%s\" -vframes 1 $TMPDIR/live.jpg",outPath,outPath);
             
             printf("\n%s\n",exepath);
              mylog.AddLog("[info] execute: %s\n",exepath);
@@ -918,6 +896,11 @@ static float f = 0.0f;
                 
                 }
 
+            ImGui::PopStyleColor(3);
+            ImGui::PopID();
+           
+
+             
 
   if (ImGui::Button("Clear")) {
                     if (outPath != NULL) {
@@ -934,8 +917,11 @@ static float f = 0.0f;
                  }
 
                  if (ImGui::Button("Show in Finder")) {
+                      char playinput[512];
                     if (outPath != NULL) {
- 
+                         snprintf(playinput,512,"open `dirname \"%s\"`",outPath);
+                        mylog.AddLog("[info] exec:%s\n",playinput);
+                  system(playinput);
                     }
                      else {
                         
@@ -1037,7 +1023,20 @@ ImGui::LabelText("Timecode start", "");
                           
 
                       }
-            ImGui::InputText("Watermark Color", outWaterColor,12);
+            if (ImGui::InputText("Watermark Color", outWaterColor,12)) LivePreviewIsOn=true;
+
+
+               ImGui::ColorEdit4("COlor", outWaterColorHEX, ImGuiColorEditFlags_Uint8  | ImGuiColorEditFlags_NoAlpha );
+                
+ //snprintf(outWaterColor,12,"%d\n",*(reinterpret_cast<int*>(&outWaterColorHEX)));
+              
+     //snprintf(outWaterColor,12,"%.2f%.2f%.2f\n", outWaterColorHEX[0], outWaterColorHEX[1], outWaterColorHEX[2]);     
+           
+
+         
+             // ImFormatString(p, IM_ARRAYSIZE(p), "##%02X%02X%02X",  outWaterColorHEX[0] ,  outWaterColorHEX[1]  ,  outWaterColorHEX[2] );
+             //sscanf(p, "%02X%02X%02X", (unsigned int*)&outWaterColorHEX[0], (unsigned int*)&outWaterColorHEX[1], (unsigned int*)&outWaterColorHEX[2]);
+             
            // ImGui::InputFloat("Watermark Opacity",&outWaterOpac,0.1f,0,1.0f);  
             if ( ImGui::SliderFloat("Watermark Opacity", &outWaterOpac, 0.0f, 1.0f, "opacity = %.1f") ) {
 
@@ -1079,6 +1078,26 @@ ImGui::Columns(1);
 
         //ImGui::Text(" \n"); 
         ImGui::Separator();        
+        
+  
+       ImGui::PushItemFlag(ImGuiItemFlags_Disabled,1);
+
+            if (ImGui::InputText("Output folder",tmpfolder,512)) {
+                  myfolder[0]=0;
+                  snprintf(myfolder,512,"%s",tmpfolder);
+
+            }  
+            ImGui::PopItemFlag();
+            
+            ImGui::SameLine();
+                 if (ImGui::Button("Open folder")) {   
+  
+            system("open $TMPDIR");
+
+                 }
+
+              ImGui::Separator();        
+
                 if (ImGui::Button("Test Frame")) {
 
                       if (width[0] == 0) {
@@ -1090,12 +1109,16 @@ ImGui::Columns(1);
    else 
    {
 
-/*
+ 
                       //char testthumbpath[512]="";
                       //char thumbpath[512]="";
                       char ffplaytestframe[512]="";
                       char testframepath[1024]="";
+                         locale_t nloc = newlocale(LC_NUMERIC_MASK,"POSIX",(locale_t) 0); 
+    uselocale(nloc);
                       char const *folder = getenv("TMPDIR"); 
+                      
+                   
             snprintf(testthumbpath,512,"%stestframe.jpg",folder);
             remove(testthumbpath);
                            
@@ -1106,10 +1129,9 @@ ImGui::Columns(1);
   
                     system(testframepath);
                           LoadImage(livepath,1);   
-                 // snprintf(ffplaytestframe,512,"./ffplay %s",testthumbpath);
-                  //system(ffplaytestframe);
-
-*/
+                snprintf(ffplaytestframe,512,"./ffplay %s",testthumbpath);
+                 system(ffplaytestframe);
+ 
 
     LivePreviewIsOn=true;
             } 
@@ -1195,12 +1217,59 @@ ImGui::Columns(1);
    }
    else 
    {
-thread t1(Logout);
+       std::thread t1(Logout);
  t1.detach();
 }
 
   }
               ImGui::SameLine();
+           /*
+             ImGui::PushID(4);
+            ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(0/7.0f, 0.6f, 0.6f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(0/7.0f, 0.7f, 0.7f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(0/7.0f, 0.8f, 0.8f));
+            */
+            if (rendering) { 
+               renderButton = "Rendering...";
+  
+                
+            } else {
+            
+             renderButton = "Render";
+            }
+            
+             if (ImGui::Button(renderButton)) {   
+                 if (rendering)  { 
+                     ImGui::OpenPopup("Rendering");
+                 } else {
+
+                
+                     if (width[0] == 0) {
+
+
+                ImGui::OpenPopup("Warning");
+            
+   }
+   else 
+   {
+          
+       std::thread t1(proxyRender);
+ t1.detach();
+}
+
+  }
+  }
+                     
+
+          /*  ImGui::PopStyleColor(3);
+            ImGui::PopID();
+           */
+        
+
+              ImGui::SameLine();
+          
+
+
                  if (ImGui::Button("Reset Values")) {
 
                         outWi =1280;
@@ -1216,7 +1285,7 @@ thread t1(Logout);
 timecode[1] = 0;
               timecode[2] = 0;
               timecode[3] = 0;
-              timecodebase=24;
+              timecodebase=25;
 
 
         }
@@ -1248,6 +1317,23 @@ timecode[1] = 0;
             }
   
 
+    if (ImGui::BeginPopupModal("Rendering", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+            {
+                ImGui::Text("Rendering in progress. \nStop pressing the button, moron\n\n");
+                      
+                ImGui::Separator();
+                //static int dummy_i = 0;
+                //ImGui::Combo("Combo", &dummy_i, "Delete\0Delete harder\0");
+
+              
+
+                if (ImGui::Button("OK", ImVec2(120,0))) { ImGui::CloseCurrentPopup(); mylog.AddLog("[info] rendering popup\n"); }
+                ImGui::SetItemDefaultFocus();
+              
+                ImGui::EndPopup();
+            }
+  
+
             if (ImGui::Button("Close Me")){
                 done = true;
                 show_proxygen_window = false;
@@ -1264,16 +1350,22 @@ timecode[1] = 0;
                  //     livethumbpath[0]=0;
                   //     snprintf(livethumbpath,512,"%slive.jpg",folder);
 
-                       snprintf(testframepath,1024,"./ffmpeg  -nostdin  -loglevel panic -y -i \"%s\" -vframes 1 -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=25: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\"  \"%stestframe.jpg\"  ",livethumbpath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],folder);
+                       snprintf(testframepath,1024,"./ffmpeg -nostdin -loglevel info -y -i \"%s\" -vframes 1 -vf \"scale=%d:%d, drawtext=fontfile=%s: text='%s': fontcolor=%s@%.1f: fontsize=%d: x=%d: y=%d,drawtext=fontfile=vcr.ttf: timecode='%d\\:%d\\:%d\\:%d': r=25: fontcolor=0xFFFFFF: fontsize=48: x=480: y=650,drawtext=fontfile=\"vcr.ttf\": text='': fontcolor=0xFFFFFF@0.5: fontsize=512: x=600: y=360\"  \"%stestframe.jpg\"  ",livethumbpath,outWi,outHe,outFont,outWaterText,outWaterColor,outWaterOpac,outWaterSize,outWaterX,outWaterY,timecode[0],timecode[1],timecode[2],timecode[3],folder);
                     snprintf(thumbpath,1024,"%stestframe.jpg",folder);
                     //printf("\n%s\n",testframepath);
                     // to much stuff 
                     //mylog.AddLog("[info] exec: %s\n",testframepath);
                 
                      mylog.AddLog("[livethumbpath] from LivePreview %s  \n",livethumbpath);
-                    t2=thread(LivePreview);
+                     std::thread t2(LivePreview);
                      t2.join();
-                          
+                    mylog.AddLog("Here in Live, Running system");  
+                     
+                    
+                   //system(testframepath);    
+                    system("echo FUCK");
+                    
+                    mylog.AddLog("\n and it was:%s\n",testframepath);
                           LivePreviewIsOn=false;
 
 
@@ -1302,6 +1394,13 @@ timecode[1] = 0;
         if (show_moe_okno)
         {
             ImGui::Begin("Moe okno",&show_moe_okno);
+             static float col1[3] = { 1.0f,0.0f,0.2f };
+            static float col2[4] = { 0.4f,0.7f,0.0f,0.5f };
+            ImGui::ColorEdit3("color 1", col1);
+            ImGui::SameLine(); HelpMarker("Click on the colored square to open a color picker.\nClick and hold to use drag and drop.\nRight-click on the colored square to show options.\nCTRL+click on individual component to input value.\n");
+
+           ImGui::ColorEdit4("MyColor##2f", col2, ImGuiColorEditFlags_HEX | ImGuiColorEditFlags_NoAlpha );
+            
             //ImGuiIO& io = ImGui::GetIO();
           /*  ImGui::Text("batman");
             if (width > 0) {
@@ -1330,8 +1429,7 @@ timecode[1] = 0;
 */
 
 
- static char buf2[64] = "batman.jpg"; ImGui::InputText("a", buf2, 64);  
-   if (ImGui::Button("Load")) { LoadImage(buf2,0);}
+
 
    
    if (ImGui::Button("Up")) { progress += 0.1f;}
@@ -1339,7 +1437,7 @@ timecode[1] = 0;
 
             ImGui::TextWrapped("And now some textured buttons..");
             ImGui::Text("wo333w");
-      static char buf1[64] = "script/proxygen.sh"; ImGui::InputText("default", buf1, 64);    
+      static char buf1[64] = "./ffmpeg -version"; ImGui::InputText("default", buf1, 64);    
     // ImGui::InputInt("input int width", &width);
     if (ImGui::Button("Clear")) { log.clear();}  
     ImGui::SameLine();
@@ -1347,13 +1445,13 @@ timecode[1] = 0;
 
         if (ImGui::Button("Clear")) { log.clear();}  
     ImGui::SameLine();
-     if (ImGui::Button("Button")) {
+     if (ImGui::Button("ffmpeg version")) {
 
          log.appendf("Path relative to the working directory is: %s\n", argv[0]);
 
              char line[1024];
     
-    FILE *pipe;
+        FILE *pipe;
     
     /* Get a pipe where the output from the scripts comes in */
     pipe = popen(buf1, "r");
@@ -1377,6 +1475,38 @@ timecode[1] = 0;
     /* Once here, out of the loop, the script has ended. */
     pclose(pipe); /* Close the pipe */
               }
+    ImGui::SameLine();
+    if (ImGui::Button("ls")) {
+
+          
+
+             char line[1024];
+    
+        FILE *pipe;
+    
+    /* Get a pipe where the output from the scripts comes in */
+    pipe = popen("ls", "r");
+    if (pipe == NULL) {  /* check for errors */
+        perror(argv[0]); /* report error message */
+        return 1;        /* return with exit code indicating error */
+    }
+
+    /* Read script output from the pipe line by line */
+  
+    while (fgets(line, 1024, pipe) != NULL) {
+        /*printf("Script output line %d: %s", linenr, line);
+        puts(line);*/
+
+        
+        log.appendf("%s",line);
+    }
+    log.appendf("\n");
+ 
+    
+    /* Once here, out of the loop, the script has ended. */
+    pclose(pipe); /* Close the pipe */
+              }
+
  ImGui::Text("Buffer contents:  %d bytes", log.size());
 
             ImGui::BeginChild("Log");
@@ -1385,17 +1515,6 @@ timecode[1] = 0;
 
              ImGui::EndChild();
           
-              ImTextureID my_tex_id = io.Fonts->TexID; 
-            float my_tex_w = (float)io.Fonts->TexWidth;
-            float my_tex_h = (float)io.Fonts->TexHeight;
-
-            ImGui::Text("%.0fx%.0f", my_tex_w, my_tex_h);
-          
-            //ImGui::Image(my_tex_id, ImVec2(my_tex_w, my_tex_h), ImVec2(0,0), ImVec2(1,1), ImColor(255,255,255,255), ImColor(255,255,255,128));
-         
-            ImGui::TextWrapped("And now some textured buttons..");
-            
-
 
 
             if (ImGui::Button("Close Me"))
